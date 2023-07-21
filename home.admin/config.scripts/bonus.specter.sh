@@ -153,7 +153,7 @@ function configure_specter {
     "proxy_url": "${proxy}",
     "only_tor": "${torOnly}",
     "tor_control_port": "${tor_control_port}",
-    "tor_status": true,
+    "tor_status": false,
     "hwi_bridge_url": "/hwi/api/"
 }
 EOF
@@ -171,7 +171,7 @@ EOF
     "name": "raspiblitz_mainnet",
     "alias": "default",
     "autodetect": false,
-    "datadir": "",
+    "datadir": "/mnt/hdd/bitcoin",
     "user": "${RPCUSER}",
     "password": "${PASSWORD_B}",
     "port": "8332",
@@ -198,7 +198,7 @@ EOF
     "name": "raspiblitz_${chain}net",
     "alias": "raspiblitz_${chain}net",
     "autodetect": false,
-    "datadir": "",
+    "datadir": "/mnt/hdd/bitcoin",
     "user": "${RPCUSER}",
     "password": "${PASSWORD_B}",
     "port": "${PORT}",
