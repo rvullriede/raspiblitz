@@ -20,7 +20,7 @@ if [ $# -gt 1 ]; then
 fi
 
 function check_and_install_python310() {
-  if ! /home/specter/.env/bin/python3 --version | grep -q "3.10"; then
+  if ! /home/specter/.env/bin/python3 --version 2>/dev/null | grep -q "3.10"; then
     echo "#    --> Python 3.10 is not installed. Installing it now."
     # Install the required packages to add a PPA
     sudo apt install software-properties-common gnupg2 -y
@@ -149,6 +149,7 @@ function configure_specter {
         "rate_limit": 10,
         "registration_link_timeout": 1
     },
+    "active_node_alias": "raspiblitz_${chain}net",
     "proxy_url": "${proxy}",
     "only_tor": "${torOnly}",
     "tor_control_port": "${tor_control_port}",
@@ -159,6 +160,57 @@ EOF
   sudo mkdir -p /home/specter/.specter/nodes
   sudo mv /home/admin/config.json /home/specter/.specter/config.json
   sudo chown -RL specter:specter /home/specter/
+
+  echo "# Adding the raspiblitz_${chain}net node to Specter"
+  RPCUSER=$(sudo cat /mnt/hdd/${network}/${network}.conf | grep rpcuser | cut -c 9-)
+  PASSWORD_B=$(sudo cat /mnt/hdd/${network}/${network}.conf | grep rpcpassword | cut -c 13-)
+
+  echo "# Connect Specter to the default mainnet node"
+  cat >/home/admin/default.json <<EOF
+{
+    "name": "raspiblitz_mainnet",
+    "alias": "default",
+    "autodetect": false,
+    "datadir": "",
+    "user": "${RPCUSER}",
+    "password": "${PASSWORD_B}",
+    "port": "8332",
+    "host": "localhost",
+    "protocol": "http",
+    "external_node": true,
+    "fullpath": "/home/specter/.specter/nodes/default.json"
+}
+EOF
+  sudo mv /home/admin/default.json /home/specter/.specter/nodes/default.json
+  sudo chown -RL specter:specter /home/specter/
+
+  if [ "${chain}" != "main" ]; then
+    if [ "${chain}" = "test" ]; then
+      portprefix=1
+    elif [ "${chain}" = "sig" ]; then
+      portprefix=3
+    fi
+    PORT="${portprefix}8332"
+
+    echo "# Connect Specter to the raspiblitz_${chain}net node"
+    cat >/home/admin/raspiblitz_${chain}net.json <<EOF
+{
+    "name": "raspiblitz_${chain}net",
+    "alias": "raspiblitz_${chain}net",
+    "autodetect": false,
+    "datadir": "",
+    "user": "${RPCUSER}",
+    "password": "${PASSWORD_B}",
+    "port": "${PORT}",
+    "host": "localhost",
+    "protocol": "http",
+    "external_node": true,
+    "fullpath": "/home/specter/.specter/nodes/raspiblitz_${chain}net.json"
+}
+EOF
+    sudo mv /home/admin/raspiblitz_${chain}net.json /home/specter/.specter/nodes/raspiblitz_${chain}net.json
+    sudo chown -RL specter:specter /home/specter/
+  fi
 }
 
 # config
@@ -209,6 +261,7 @@ if [ "$1" = "1" ] || [ "$1" = "on" ]; then
     sudo -u specter virtualenv --python=python3 /home/specter/.env
 
     check_and_install_python310
+    
     sudo -u specter /home/specter/.env/bin/python3 -m pip install --upgrade pip
 
     echo "#    --> pip-installing specter"
@@ -404,16 +457,17 @@ if [ "$1" = "0" ] || [ "$1" = "off" ]; then
   fi
 
   isInstalled=$(sudo ls /etc/systemd/system/specter.service 2>/dev/null | grep -c 'specter.service')
-  if [ ${isInstalled} -eq 0 ]; then
-    echo "error='was not installed'"
-    exit 1
+  if [ ${isInstalled} -gt 0 ]; then
+    # removing base systemd service & code
+    echo "#    --> REMOVING the specter.service"
+    sudo systemctl stop specter
+    sudo systemctl disable specter
+    sudo rm /etc/systemd/system/specter.service
+  else
+    echo "#    --> The specter.service is not installed."
   fi
 
-  # removing base systemd service & code
-  echo "#    --> REMOVING Specter Desktop"
-  sudo systemctl stop specter
-  sudo systemctl disable specter
-  sudo rm /etc/systemd/system/specter.service
+  # pip uninstall
   sudo -u specter /home/specter/.env/bin/python3 -m pip uninstall --yes cryptoadvance.specter 1>&2
 
   # get delete data status - either by parameter or if not set by user dialog
